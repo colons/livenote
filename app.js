@@ -116,6 +116,11 @@ app.get('/favicon.ico', function (req, res) {
 app.get('/terms', function (req, res) {
   res.sendfile(__dirname + '/terms.html');
 });
+app.get('/conf', function (req, res) {
+  res.send(JSON.stringify({
+    port: livenote.port
+  }));
+});
 
 app.get('/:id', function (req, res) {
   var serverId = new Date().valueOf();
