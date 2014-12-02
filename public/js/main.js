@@ -1,5 +1,8 @@
-$(function() {
+var conf,
+    socket,
+    notif;
 
+$(function() {
   listenEvents();
   
   $('#note').hallo({
@@ -36,67 +39,74 @@ $(function() {
     localStorage.windowFocus = 1;
   });
   renderSaved();
+
+  $.getJSON('/conf', function(d) {
+    conf = d;
+    setupSocket();
+  });
 });
 
-var socket = io("http://"+document.location.hostname+":8000"),notif;
+function setupSocket() {
+  socket = io("http://"+document.location.hostname+":" + conf.port);
 
-socket.on("connect", function() {
-  socket.emit('init', { id: document.location.href.split("/").pop()},function(data){
+  socket.on("connect", function() {
+    socket.emit('init', { id: document.location.href.split("/").pop()},function(data){
+      var verb = (data.num==1)?" client":" clients";
+      $("#status").text(data.num+ verb + " connected");
+      oldval = data.note;
+      $('#note').hallo({editable: true});
+      $("#note").html(oldval);
+      if(!localStorage.urlTip){
+        $("#url").popover("show");
+        setTimeout(function(){
+          $("#url").popover("hide");
+        },5000);
+        localStorage.urlTip = true;
+      }
+    });
+    $("#status").removeClass("label-danger label-warning").addClass("label-success").text("Connected");
+  }).on("disconnect", function() {
+    $("#status").removeClass("label-success label-warning").addClass("label-danger").text("Disconnected");
+    $('#note').hallo({editable: false});
+  }).on("connecting",function(){
+    $("#status").removeClass("label-success label-danger").addClass("label-warning").text("Connecting..");
+  });
+
+  socket.on("clientChange",function(data){
     var verb = (data.num==1)?" client":" clients";
     $("#status").text(data.num+ verb + " connected");
-    oldval = data.note;
-    $('#note').hallo({editable: true});
-    $("#note").html(oldval);
-    if(!localStorage.urlTip){
-      $("#url").popover("show");
-      setTimeout(function(){
-        $("#url").popover("hide");
-      },5000);
-      localStorage.urlTip = true;
-    }
   });
-  $("#status").removeClass("label-danger label-warning").addClass("label-success").text("Connected");
-}).on("disconnect", function() {
-  $("#status").removeClass("label-success label-warning").addClass("label-danger").text("Disconnected");
-  $('#note').hallo({editable: false});
-}).on("connecting",function(){
-  $("#status").removeClass("label-success label-danger").addClass("label-warning").text("Connecting..");
-});
 
-socket.on("clientChange",function(data){
-  var verb = (data.num==1)?" client":" clients";
-  $("#status").text(data.num+ verb + " connected");
-});
+  socket.on("delBackNote",function(data){
+    window.location = "http://"+document.location.host;
+  });
 
-socket.on("delBackNote",function(data){
-  window.location = "http://"+document.location.host;
-});
+  socket.on("changeBackNote",function(data){
+    $('#note').hallo({editable: false});
+    clearTimeout(tout);
+    var newval = $("#note").html();
+    var op = data.op;
 
-socket.on("changeBackNote",function(data){
-  $('#note').hallo({editable: false});
-  clearTimeout(tout);
-  var newval = $("#note").html();
-  var op = data.op;
-
-  if(op.d!==null) {
-    newval = newval.slice(0,op.p)+newval.slice(op.p+op.d);
-  }
-  if(op.i!==null){
-    newval = newval.insert(op.p,op.i);
-  }
-  $("#note").html(newval);
-  oldval = newval;
-  tout = setTimeout(function(){
-    $('#note').hallo({editable: true});
-    if(localStorage.notif == 1 && localStorage.windowFocus != 1){
-      notif = new Notify("LiveNote",{
-        notifyClick: onNotifyClick,
-        "body":"There are new changes in your draft."
-      });
-      notif.show();
-    } 
-  },1000);
-});
+    if(op.d!==null) {
+      newval = newval.slice(0,op.p)+newval.slice(op.p+op.d);
+    }
+    if(op.i!==null){
+      newval = newval.insert(op.p,op.i);
+    }
+    $("#note").html(newval);
+    oldval = newval;
+    tout = setTimeout(function(){
+      $('#note').hallo({editable: true});
+      if(localStorage.notif == 1 && localStorage.windowFocus != 1){
+        notif = new Notify("LiveNote",{
+          notifyClick: onNotifyClick,
+          "body":"There are new changes in your draft."
+        });
+        notif.show();
+      } 
+    },1000);
+  });
+}
 
 
 function listenEvents(){
